@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NeumaSim · Simulador de circuitos neumáticos</title>
+  <meta name="description" content="Simulador de circuitos neumáticos para Tecnología e Ingeniería de 1º de Bachillerato. Monta, conecta y simula cilindros y válvulas en el navegador.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Crect x='5' y='11' width='16' height='10' fill='none' stroke='white' stroke-width='2'/%3E%3Crect x='10' y='12' width='3' height='8' fill='white'/%3E%3Cpath d='M13 16h15' stroke='white' stroke-width='2.4'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#2563eb"/><rect x="5" y="11" width="16" height="10" fill="none" stroke="#fff" stroke-width="2"/><rect x="10" y="12" width="3" height="8" fill="#fff"/><path d="M13 16h15" stroke="#fff" stroke-width="2.4"/></svg></div>
+      <div>
+        <div class="title">NeumaSim</div>
+        <div class="doc" id="docName" contenteditable="true" spellcheck="false" title="Haz clic para cambiar el nombre">Circuito sin título</div>
+      </div>
+    </div>
+
+    <nav class="tools">
+      <button class="tb edit-only" id="btnNew" title="Circuito nuevo">📄<span>Nuevo</span></button>
+      <button class="tb edit-only" id="btnOpen" title="Abrir un circuito guardado (.json)">📂<span>Abrir</span></button>
+      <button class="tb" id="btnSave" title="Guardar el circuito en un archivo (Ctrl+S)">💾<span>Guardar</span></button>
+      <button class="tb" id="btnPng" title="Descargar una imagen PNG del circuito">🖼<span>Imagen</span></button>
+      <button class="tb" id="btnShare" title="Copiar un enlace que abre este circuito">🔗<span>Compartir</span></button>
+      <span class="sep"></span>
+      <button class="tb edit-only" id="btnUndo" title="Deshacer (Ctrl+Z)">↶</button>
+      <button class="tb edit-only" id="btnRedo" title="Rehacer (Ctrl+Y)">↷</button>
+      <span class="sep"></span>
+      <button class="tb accent edit-only" id="btnExamples" title="Abrir un circuito de ejemplo">📚<span>Ejemplos</span></button>
+    </nav>
+
+    <div class="simctl">
+      <button class="play" id="btnPlay" title="Iniciar la simulación (barra espaciadora)">▶ <span>Simular</span></button>
+      <button id="btnPause" title="Pausa">⏸</button>
+      <button id="btnStop" title="Parar y volver a edición">■</button>
+      <select id="speed" title="Velocidad de la simulación">
+        <option value="0.25">×0,25</option>
+        <option value="0.5">×0,5</option>
+        <option value="1" selected>×1</option>
+        <option value="2">×2</option>
+      </select>
+      <span class="badge edit" id="modeBadge">✎ Edición</span>
+    </div>
+    <button class="tb help" id="btnHelp" title="Ayuda">❔<span>Ayuda</span></button>
+  </header>
+
+  <main>
+    <aside id="palette">
+      <div class="pane-title">Componentes</div>
+      <div class="pal-list"></div>
+    </aside>
+
+    <section id="stage">
+      <svg id="canvas" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern id="gridPat" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r="0.7" fill="#cbd5e1"/></pattern>
+          <pattern id="gridPat2" width="100" height="100" patternUnits="userSpaceOnUse"><path d="M100 0H0V100" fill="none" stroke="#e2e8f0" stroke-width="1"/></pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#gridPat2)"/>
+        <rect width="100%" height="100%" fill="url(#gridPat)"/>
+        <g id="world"></g>
+      </svg>
+      <div id="emptyState">
+        <div class="es-card">
+          <div class="es-icon">🛠️</div>
+          <h2>Monta tu circuito neumático</h2>
+          <p>Arrastra componentes desde la izquierda, une sus conexiones con tubos y pulsa <b>▶ Simular</b>.</p>
+          <button class="btn primary" id="btnExamples2">📚 Empezar con un ejemplo</button>
+        </div>
+      </div>
+      <div id="exNote" hidden></div>
+      <div class="zoombar">
+        <button id="zoomOut" title="Alejar">−</button>
+        <span id="zoomLbl">100%</span>
+        <button id="zoomIn" title="Acercar">+</button>
+        <button id="zoomFit" title="Ajustar el circuito a la pantalla">⤢</button>
+      </div>
+      <div id="tip" hidden></div>
+      <div id="toast" hidden></div>
+    </section>
+
+    <aside id="inspector">
+      <div class="insp-body"></div>
+    </aside>
+  </main>
+
+  <section id="chartPanel" class="open">
+    <header id="chartToggle">
+      <span class="chev">▾</span> Diagrama espacio-tiempo <small>(posición de cada cilindro: 0 = recogido, 1 = fuera)</small>
+      <span id="simTime"></span>
+    </header>
+    <canvas id="chart"></canvas>
+  </section>
+
+  <footer id="status"><span id="hint"></span></footer>
+
+  <input type="file" id="fileInput" accept=".json,application/json" hidden>
+
+  <!-- Ejemplos -->
+  <div class="modal" id="exModal" hidden>
+    <div class="dialog wide">
+      <header><h2>📚 Circuitos de ejemplo</h2><button class="x" data-close aria-label="Cerrar">✕</button></header>
+      <div class="ex-list" id="exList"></div>
+    </div>
+  </div>
+
+  <!-- Ayuda -->
+  <div class="modal" id="helpModal" hidden>
+    <div class="dialog wide">
+      <header><h2>❔ Cómo usar NeumaSim</h2><button class="x" data-close aria-label="Cerrar">✕</button></header>
+      <div class="helpc">
+        <section>
+          <h3>1 · Montar el circuito</h3>
+          <ul>
+            <li><b>Añadir</b>: arrastra un componente de la izquierda al lienzo (o haz clic en él y luego en el lienzo).</li>
+            <li><b>Mover</b>: arrastra el componente. <b>Girar</b>: tecla <kbd>R</kbd>. <b>Borrar</b>: <kbd>Supr</kbd>.</li>
+            <li><b>Tubos</b>: haz clic en una conexión <span class="dot"></span> y después en otra. Si haces clic en el lienzo mientras tanto, añades codos al tubo. <kbd>Esc</kbd> cancela.</li>
+            <li>Para hacer una <b>derivación (T)</b> conecta varios tubos a la misma conexión.</li>
+            <li>Mueve la vista arrastrando el fondo; acerca o aleja con la rueda del ratón.</li>
+            <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> deshace. El circuito se guarda solo en este navegador; usa <b>Guardar</b> para llevártelo en un archivo.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>2 · Simular</h3>
+          <ul>
+            <li>Pulsa <b>▶ Simular</b> (o la barra espaciadora). Durante la simulación no se puede editar.</li>
+            <li><b>Pulsadores y rodillos</b>: mantén pulsado el ratón sobre la válvula. <kbd>Mayús</kbd>+clic la deja enclavada.</li>
+            <li><b>Palancas</b>: haz clic para cambiarlas de posición.</li>
+            <li>Los tubos se colorean según la presión: <span class="sw" style="background:#0d3c91"></span> con presión · <span class="sw" style="background:#96bee4"></span> sin presión.</li>
+            <li>Las válvulas muestran su posición real: la casilla que está sobre las conexiones es la que funciona.</li>
+            <li>Los <b>reguladores de caudal</b> y los <b>temporizadores</b> se pueden ajustar mientras simulas.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>3 · Numeración de las conexiones (ISO 5599)</h3>
+          <table>
+            <tr><td><b>1</b></td><td>Alimentación de aire comprimido</td></tr>
+            <tr><td><b>2, 4</b></td><td>Utilización (salidas hacia el cilindro)</td></tr>
+            <tr><td><b>3, 5</b></td><td>Escape a la atmósfera (▽ si están libres)</td></tr>
+            <tr><td><b>12</b></td><td>Pilotaje que conecta 1 con 2</td></tr>
+            <tr><td><b>14</b></td><td>Pilotaje que conecta 1 con 4</td></tr>
+          </table>
+          <p>Una válvula <b>3/2</b> tiene 3 vías (conexiones) y 2 posiciones (casillas). NC = normalmente cerrada; NA = normalmente abierta.</p>
+        </section>
+        <section>
+          <h3>4 · Finales de carrera y secuencias</h3>
+          <p>Cada cilindro tiene una letra (A, B…). Sus posiciones se llaman <b>a0</b> (recogido) y <b>a1</b> (fuera). Una válvula de <b>rodillo</b> con el detector «a1» se acciona sola cuando el cilindro A llega al final.</p>
+          <p>Las secuencias se escriben con + (sale) y − (entra): por ejemplo, <b>A+ B+ A− B−</b>. El <b>diagrama espacio-tiempo</b> de abajo dibuja el movimiento de cada cilindro.</p>
+        </section>
+        <section>
+          <h3>Sobre el modelo</h3>
+          <p>La simulación es didáctica: calcula presiones, caudales y el movimiento de los cilindros de forma simplificada para que el comportamiento sea realista (por ejemplo, un estrangulador frena el cilindro), pero los tiempos no corresponden a ningún cilindro real.</p>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/components.js"></script>
+  <script src="js/sim.js"></script>
+  <script src="js/examples.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
